@@ -210,6 +210,9 @@ pins a content hash, and a modified bundle loses its grant.
   processing modes, and a scheduled background task, so it does wake on its own —
   but background refresh is at iOS/macOS's discretion, and a Mac that has been
   asleep will not have polled.
+* **Do not assume a running app is a polling app.** Measured 2026-09-30: the
+  process was up and using ~172% CPU with the cached state unchanged for 30
+  minutes. Check `Data age` in Home Assistant, not `pgrep`.
 * Opening the app is a reliable way to force a refresh.
 
 That is why every entity carries an **availability** topic: past

@@ -120,10 +120,15 @@ enough to name a state, so the raw value is published as a diagnostic instead.
 A wrong binary in a dashboard reads as fact.
 
 **The data age is published, and acted on.** The app stores the latest state, not
-a history, so a closed or signed-out app leaves stale values behind. Every entity
-carries an `availability` topic that flips to `offline` past
-`stale_after_seconds`, and `Data age` / `Data timestamp` are exposed so you can
-tell "the bridge is running" from "the car last spoke at".
+a history, so stale values are the failure mode. Every entity carries an
+`availability` topic that flips to `offline` past `stale_after_seconds`, and
+`Data age` / `Data timestamp` are exposed so you can tell "the bridge is running"
+from "the car last spoke at".
+
+That distinction is not academic. Measured 2026-09-30: the XPENG app was running
+and using ~172% CPU while the cached state had not changed in **30 minutes** — a
+5-minute sample every 10 seconds saw zero updates. An app can be alive, busy and
+not polling. Watch `Data age`, not the process.
 
 ## Documentation
 
@@ -132,6 +137,7 @@ tell "the bridge is running" from "the car last spoke at".
 | [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Setting up the app, a second XPENG account, permissions, config, running as a service, troubleshooting |
 | [docs/ENTITIES.md](docs/ENTITIES.md) | Every discovery entity, its source field, unit and device class |
 | [docs/STATE-FIELDS.md](docs/STATE-FIELDS.md) | All 157 cached fields, with types and observed values |
+| [docs/EVCONDUIT.md](docs/EVCONDUIT.md) | Forwarding positions back to EVConduit for trip maps, and why that is harder than it sounds |
 
 ## Tests
 
