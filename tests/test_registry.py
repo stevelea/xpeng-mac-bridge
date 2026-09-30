@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -557,3 +558,83 @@ class TestStateFilesFollowTheConfig(unittest.TestCase):
 
         after = real.read_text() if real.exists() else None
         self.assertEqual(before, after, "a test wrote to the real config directory")
+
+
+class TestRawLocationSensor(unittest.TestCase):
+    """A device_tracker hides the position in attributes; this makes it a state."""
+
+    def test_formats_fixed_width(self):
+        vehicle = make_vehicle(
+            drive={"latitude": -33.8688, "longitude": 151.2093}
+        )
+        self.assertEqual(signals.raw_location(vehicle), "-33.868800,151.209300")
+
+    def test_trailing_zero_does_not_change_the_shape(self):
+        """round() would give -33.8688 here and -33.868816 the next fix."""
+        a = signals.raw_location(
+            make_vehicle(drive={"latitude": -33.8688, "longitude": 1.0})
+        )
+        b = signals.raw_location(
+            make_vehicle(drive={"latitude": -33.868816, "longitude": 1.0})
+        )
+        self.assertEqual(len(a.split(",")[0].split(".")[1]), 6)
+        self.assertEqual(len(b.split(",")[0].split(".")[1]), 6)
+
+    def test_missing_half_is_not_half_a_position(self):
+        self.assertIsNone(
+            signals.raw_location(make_vehicle(drive={"latitude": -33.9}))
+        )
+        self.assertIsNone(signals.raw_location(make_vehicle()))
+
+    def test_impossible_coordinates_are_rejected(self):
+        self.assertIsNone(
+            signals.raw_location(
+                make_vehicle(drive={"latitude": 999.0, "longitude": 0.0})
+            )
+        )
+
+    def test_registered_as_a_visible_sensor(self):
+        signal = next(
+            s for s in signals.SIGNALS if s.object_id == "location_raw"
+        )
+        self.assertEqual(signal.component, signals.COMPONENT_SENSOR)
+        # Visible on purpose: unlike the other *_raw entities, this one is the
+        # only entity whose state is the position.
+        self.assertIsNone(signal.entity_category)
+
+    def test_publishes_to_its_own_topic(self):
+        vehicle = make_vehicle(drive={"latitude": -33.8688, "longitude": 151.2093})
+        with tempfile.TemporaryDirectory() as tmp:
+            config = RecordingPublisher(echo=False)
+            bridge = Bridge(test_config(Path(tmp)), config)
+            bridge.publish_states([vehicle])
+        topics = {t: p for t, p, _ in config.messages}
+        self.assertEqual(
+            topics["xpeng/l1nnsgha0sb000000/location_raw"],
+            "-33.868800,151.209300",
+        )
+
+
+class TestNoIdentifyingDataIsCommitted(unittest.TestCase):
+    """Runs the leak checker as part of the suite.
+
+    It reads the live car and greps the checkout for its VIN, account uid and
+    coordinates, in every encoding that matters — the values differ per machine,
+    so a hand-written pattern cannot do this. Skipped where there is no live
+    state to compare against, which is every machine but the owner's.
+    """
+
+    def test_check_leaks_passes(self):
+        import subprocess
+
+        script = Path(__file__).resolve().parent.parent / "check-leaks.py"
+        result = subprocess.run(
+            [sys.executable, str(script)], capture_output=True, text=True
+        )
+        if "could not read live state" in result.stdout or "nothing to check" in result.stdout:
+            self.skipTest("no live XPENG state on this machine")
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"identifying data committed:\n{result.stdout}\n{result.stderr}",
+        )

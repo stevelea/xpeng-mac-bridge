@@ -22,8 +22,8 @@ xpeng-mac-bridge  ──MQTT + HA discovery──▶  your broker  ──▶  Ho
 
 ## What you get
 
-One Home Assistant device per car, named with the full VIN, and **32 entities**
-created automatically — 19 sensors, 6 binary sensors, a GPS `device_tracker`,
+One Home Assistant device per car, named with the full VIN, and **33 entities**
+created automatically — 20 sensors, 6 binary sensors, a GPS `device_tracker`,
 and diagnostics. No YAML.
 
 | | |
@@ -164,12 +164,19 @@ not polling. Watch `Data age`, not the process.
 python3 -m unittest discover -s tests -t .
 ```
 
-64 tests, no dependencies. `tests/test_broker.py` is a real in-process MQTT 3.1.1
+89 tests, no dependencies. `tests/test_broker.py` is a real in-process MQTT 3.1.1
 broker rather than a stub, so a framing mistake fails the test instead of being
 agreed with. The registry tests enforce the rules Home Assistant applies at
 runtime — a valid `device_class` for the component, a unit valid for the
 `device_class`, no `state_class` on a timestamp — which would otherwise only show
 up as an entity silently failing to appear.
+
+One of the tests runs [`check-leaks.py`](check-leaks.py), which reads this
+machine's VIN, account uid and coordinates and greps the checkout for them in
+every encoding that matters. It belongs in the suite because those values are not
+known until they are read — a hand-written pattern cannot catch a coordinate
+pasted into a fixture, which is exactly how one got committed here. It skips
+itself where there is no live state to compare against.
 
 ## Licence
 

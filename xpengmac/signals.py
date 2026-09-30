@@ -187,6 +187,21 @@ SIGNALS: tuple[Signal, ...] = (
         "bleTimestamp", "ble_last_connected", "Bluetooth last connected",
         device_class="timestamp", entity_category="diagnostic", precision=None,
     ),
+    # --- location -----------------------------------------------------------
+    Signal(
+        "__location_raw__", "location_raw", "Location (raw)",
+        icon="mdi:map-marker", precision=None,
+    ),
+    # The coordinates as a *state*, which the tracker cannot give you: a
+    # device_tracker's state is `home` / `not_home` / a zone name, and its
+    # coordinates live in attributes — so nothing has the position as a state to
+    # graph, template against, or trigger on directly. This is exactly that:
+    # `-33.8688,151.2093`.
+    #
+    # Deliberately not `entity_category: diagnostic`, unlike the other `*_raw`
+    # entities. Those expose enums whose meaning is not established, so they are
+    # reference material; this one is asked for on purpose, and being visible and
+    # usable is its whole value.
 )
 
 # --------------------------------------------------------------------------- #
@@ -517,7 +532,30 @@ def signal_state(signal: Signal, vehicle: Vehicle) -> str | None:
     if signal.key == "__data_age__":
         age = vehicle.age_seconds
         return None if age is None else str(int(age))
+    if signal.key == "__location_raw__":
+        return raw_location(vehicle)
     return format_value(vehicle.get(signal.key), signal.precision)
+
+
+def raw_location(vehicle: Vehicle) -> str | None:
+    """``"-33.868800,151.209300"`` — latitude then longitude, 6 decimal places.
+
+    Fixed width rather than `round(...)`, which drops a trailing zero and gives
+    `-33.8688` one reading and `-33.868816` the next. A coordinate read by a
+    template or a parser should not change shape between fixes. Six places is
+    about 11 cm, well past anything the car reports.
+
+    Returns None rather than half a position when a component is missing or out
+    of range, so the entity goes unavailable rather than reporting a location
+    that is partly invented.
+    """
+    lat = _num(vehicle.get("drive.latitude"))
+    lon = _num(vehicle.get("drive.longitude"))
+    if lat is None or lon is None:
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return f"{lat:.6f},{lon:.6f}"
 
 
 def derived_state(derived: Derived, vehicle: Vehicle) -> str | None:

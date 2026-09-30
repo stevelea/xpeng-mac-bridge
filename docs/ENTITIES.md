@@ -33,6 +33,7 @@ Home Assistant creates all of these from the discovery configs alone; no YAML is
 | `data_timestamp` | Data timestamp | the cache timestamp | — | timestamp | — |
 | `data_age` | Data age | computed from the timestamp | s | duration | measurement |
 | `ble_last_connected` | Bluetooth last connected | `bleTimestamp` | — | timestamp | — |
+| `location_raw` | Location (raw) | `drive.latitude` + `drive.longitude`, as a state | — | — | — |
 
 ## Binary sensors
 

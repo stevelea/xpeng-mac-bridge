@@ -189,6 +189,7 @@ def entities_doc(vehicle: reader.Vehicle, mqtt_prefix: str, discovery_prefix: st
         source = {
             "__timestamp__": "the cache timestamp",
             "__data_age__": "computed from the timestamp",
+            "__location_raw__": "`drive.latitude` + `drive.longitude`, as a state",
         }.get(signal.key, f"`{signal.key}`")
         out.append(
             f"| `{signal.object_id}` | {signal.name} | {source} | "
