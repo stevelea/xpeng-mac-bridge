@@ -1,0 +1,36 @@
+{
+  "mqtt": {
+    "host": "homeassistant.local",
+    "port": 1883,
+    "username": "mqtt",
+    "password": "PUT-THE-PASSWORD-HERE",
+    "tls": false,
+    "tls_insecure": false,
+    "ca_file": null,
+    "client_id": "xpeng-mac-bridge",
+    "keepalive": 60,
+    "topic_prefix": "xpeng",
+    "discovery_prefix": "homeassistant",
+    "discovery": true,
+    "publish_interval": 30
+  },
+  "source": {
+    "database": null,
+    "uid": null,
+    "vin": null,
+    "enrich_from_plist": true,
+    "plist_path": null
+  },
+  "behaviour": {
+    "retain": true,
+    "qos": 1,
+    "stale_after_seconds": 1800,
+    "publish_raw_state": true,
+    "prune_removed_entities": true,
+    "state_file": null,
+    "reset_settle_seconds": 20
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}

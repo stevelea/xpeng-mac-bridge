@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template. Do not copy this file directly — run ./install-launchd.sh, which
+  substitutes __CHECKOUT__ and __HOME__ and loads the result. launchd does not
+  expand ~ or environment variables, so both must be absolute.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.github.stevelea.xpeng-mac-bridge</string>
+
+    <!--
+      Runs the bundle rather than python directly, so macOS TCC has a specific
+      signed program to name in the Full Disk Access list. Running
+      "/usr/bin/python3 xpeng_bridge.py" would identify as Python, and granting
+      that Full Disk Access would hand the permission to every Python script on
+      the machine. Build it first with ./build-app.sh
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__CHECKOUT__/XPENGBridge.app/Contents/MacOS/XPENGBridge</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__CHECKOUT__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart on any exit that is not a clean stop, so a broker outage that
+         exhausts the client's own reconnect budget is recovered by launchd. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- The bridge already retries; this is the backstop against a tight loop. -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/xpeng-mac-bridge.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/xpeng-mac-bridge.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <!--
+          Prefer putting the MQTT password here rather than in config.json, so it
+          is never on disk:
+          <key>XPENG_BRIDGE_MQTT_PASSWORD</key>
+          <string>…</string>
+        -->
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
