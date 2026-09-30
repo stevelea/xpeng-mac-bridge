@@ -199,6 +199,40 @@ one line per retry, so granting access takes effect without reloading.
 Re-run `build-app.sh` if you move the folder or edit these files: the signature
 pins a content hash, and a modified bundle loses its grant.
 
+### Why the bundle contains a compiled launcher
+
+This is the part that is easy to get wrong, and it cost a working grant to find.
+
+macOS does not decide a permission request by looking at the process asking — it
+looks at the **responsible process**, and for a child that is inherited from its
+parent. So granting Full Disk Access to `XPENGBridge.app` only helps if the
+process reading the container is, ultimately, the app.
+
+A shell script cannot be that. If `Contents/MacOS/XPENGBridge` is a script, the
+kernel runs `/bin/sh` on it, and the TCC log says exactly where that lands:
+
+```
+responsible={identifier=com.apple.sh, responsible_path=/bin/sh, ...}
+accessing={identifier=com.apple.python3, binary_path=.../Python}
+```
+
+The grant recorded against the bundle is then never consulted, and the denial is
+logged as `Platform binary prompting is 'Deny' because: is Platform Binary` —
+which reads like macOS refusing to ask, not like a mismatch.
+
+So the bundle ships `launcher.c`, compiled to a real Mach-O. It **forks** the
+interpreter instead of `exec`ing it, because an `exec` would replace the process
+and lose the bundle's identity again. With that in place the log reads:
+
+```
+responsible={identifier=com.github.stevelea.xpeng-mac-bridge,
+             responsible_path=.../XPENGBridge.app/Contents/MacOS/XPENGBridge}
+```
+
+and the grant applies. `build-app.sh` refuses to finish if the executable it
+produced is not a Mach-O, which is the check that would have caught this
+immediately.
+
 ---
 
 ## 7. Keeping the data fresh — and the CPU down

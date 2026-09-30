@@ -97,6 +97,13 @@ tool. Running `/usr/bin/python3 xpeng_bridge.py` under `launchd` would identify
 as Python, and granting *that* Full Disk Access hands the permission to every
 Python script on the machine.
 
+The bundle ships a small compiled launcher rather than a shell script, and that
+is load-bearing: macOS checks the **responsible process**, and a shell script's
+responsible process is `/bin/sh`, so a grant against the bundle would never be
+consulted. It forks the interpreter rather than exec'ing it, keeping the bundle's
+identity. The measured evidence is in `launcher.c` and
+[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
+
 ## Design notes
 
 Three things here are deliberate and worth not undoing:

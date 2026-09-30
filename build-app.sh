@@ -49,16 +49,29 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-cat > "$APP/Contents/MacOS/XPENGBridge" <<'LAUNCHER'
-#!/bin/sh
-# Resolve the checkout from the bundle's own location so a moved repo still works:
-# .../xpeng-mac-bridge/XPENGBridge.app/Contents/MacOS -> .../xpeng-mac-bridge
-HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$HERE/../../.." && pwd)
-exec /usr/bin/python3 "$REPO/xpeng_bridge.py" "$@"
-LAUNCHER
+# The executable is a compiled launcher, not a shell script. A shell script
+# makes macOS run /bin/sh on it, and TCC then attributes the request to
+# /bin/sh — so a Full Disk Access grant against this bundle is never consulted.
+# See launcher.c, which carries the measured evidence.
+if ! command -v clang >/dev/null 2>&1; then
+    echo "clang not found. Install the Xcode Command Line Tools:" >&2
+    echo "  xcode-select --install" >&2
+    exit 1
+fi
 
-chmod +x "$APP/Contents/MacOS/XPENGBridge"
+clang -O2 -Wall -Wextra -o "$APP/Contents/MacOS/XPENGBridge" \
+    "$BUNDLE_DIR/launcher.c" 2>&1 | sed 's/^/  clang: /'
+
+if [ ! -x "$APP/Contents/MacOS/XPENGBridge" ]; then
+    echo "failed to build the launcher" >&2
+    exit 1
+fi
+
+# Prove it is a real Mach-O rather than a script: this is the whole point.
+if ! file "$APP/Contents/MacOS/XPENGBridge" | grep -q "Mach-O"; then
+    echo "launcher is not a Mach-O binary; TCC would attribute it to its interpreter" >&2
+    exit 1
+fi
 
 # Ad-hoc signature. Not notarised and not from an Apple developer account, but it
 # gives the bundle a stable code identity, which is what the TCC grant is keyed

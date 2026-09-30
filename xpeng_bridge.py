@@ -660,53 +660,88 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
 
-    announced: list[str] = []
     daemon_mode = not (args.once or args.announce_only)
+    one_shot = args.once or args.announce_only
+
+    # The Full Disk Access instructions are long and the daemon retries every
+    # interval, so say it once and then keep the log to one line per attempt.
+    access_reported = {"done": False}
+
+    def report_access_denied() -> None:
+        if not access_reported["done"]:
+            logger.error(
+                "cannot read vehicle state: macOS denied access.\n%s", ACCESS_HELP
+            )
+            access_reported["done"] = True
+        else:
+            logger.warning(
+                "still denied access to the XPENG container; waiting for the "
+                "Full Disk Access grant"
+            )
+
+    def guarded(work: Callable[[], Any], what: str) -> bool:
+        """Run broker work under the daemon's one error policy.
+
+        Every "the daemon exited and launchd restarted it" bug in this file has
+        been the same mistake: a broker call added at a site that did not repeat
+        the handler list. Three so far — the idle-loop re-announce, the initial
+        announce, and the reset. This is where that list lives now, so a new
+        call site inherits it instead of having to remember it.
+
+        Returns False when the work did not complete.
+        """
+        try:
+            work()
+            return True
+        except MQTTError as exc:
+            logger.error(
+                "broker connection lost during %s: %s; reconnecting", what, exc
+            )
+            _reconnect(client, BIRTH_TOPIC, bridge)
+            return False
+        except AccessDenied:
+            report_access_denied()
+            bridge.mark_unavailable()
+            return False
+        except FileNotFoundError as exc:
+            # The app is not signed in, or its container has gone. Recoverable.
+            logger.error("cannot read vehicle state: %s", exc)
+            bridge.mark_unavailable()
+            return False
+        except Exception:  # noqa: BLE001
+            # The last line of defence. A daemon that dies here takes the data
+            # away from Home Assistant silently, and launchd's answer — restart
+            # it — drops the broker connection every time. The loop sleeps 30 s,
+            # so a persistent fault is two lines a minute, not a spin.
+            logger.exception("unexpected error during %s; continuing", what)
+            return False
+
     try:
         if args.reset:
-            retired = bridge.prune([], retire_all=True)
-            logger.info("reset: retired %d previously announced entities", retired)
-            if retired:
-                # See BehaviourConfig.reset_settle_seconds: re-announcing in the
-                # same instant leaves the old entity ID in place.
-                logger.info(
-                    "reset: waiting %.0fs for Home Assistant to process the deletions",
-                    config.behaviour.reset_settle_seconds,
-                )
-                time.sleep(config.behaviour.reset_settle_seconds)
 
-        one_shot = args.once or args.announce_only
-        announced: list[str] = []
+            def do_reset() -> None:
+                retired = bridge.prune([], retire_all=True)
+                logger.info("reset: retired %d previously announced entities", retired)
+                if retired:
+                    # See BehaviourConfig.reset_settle_seconds: re-announcing in
+                    # the same instant leaves the old entity ID in place.
+                    logger.info(
+                        "reset: waiting %.0fs for Home Assistant to process the deletions",
+                        config.behaviour.reset_settle_seconds,
+                    )
+                    time.sleep(config.behaviour.reset_settle_seconds)
 
-        # The Full Disk Access instructions are long and the daemon retries every
-        # interval, so say it once and then keep the log to one line per attempt.
-        access_reported = {"done": False}
+            if not guarded(do_reset, "reset") and one_shot:
+                return 1
 
-        def report_access_denied() -> None:
-            if not access_reported["done"]:
-                logger.error(
-                    "cannot read vehicle state: macOS denied access.\n%s", ACCESS_HELP
-                )
-                access_reported["done"] = True
-            else:
-                logger.warning(
-                    "still denied access to the XPENG container; waiting for the "
-                    "Full Disk Access grant"
-                )
+        def announce_all() -> None:
+            bridge.prune(bridge.announce(bridge.read()))
 
-        try:
-            announced = bridge.announce(bridge.read())
-            bridge.prune(announced)
-        except AccessDenied:
+        if not guarded(announce_all, "discovery announce"):
             # Keep a daemon alive rather than exiting: the fix is a Full Disk
             # Access grant the user makes while it is running, and it should
             # start working without a reload. A one-shot run has nothing to wait
             # for, so it reports and exits non-zero.
-            report_access_denied()
-            if one_shot:
-                return 1
-        except FileNotFoundError as exc:
-            logger.error("cannot read vehicle state: %s", exc)
             if one_shot:
                 return 1
 
@@ -714,38 +749,19 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.once:
-            try:
-                bridge.cycle()
-            except AccessDenied:
-                report_access_denied()
+            if not guarded(bridge.cycle, "one-shot publish"):
                 return 1
             logger.info("one-shot publish complete")
             return 0
 
         while not stopping["now"]:
             started = time.monotonic()
-            try:
+            def turn() -> None:
                 if bridge.take_reannounce():
                     bridge.prune(bridge.announce(bridge.read()))
                 bridge.cycle()
-            except AccessDenied:
-                report_access_denied()
-                bridge.mark_unavailable()
-            except FileNotFoundError as exc:
-                # The app is not signed in, or its container was removed. Say so
-                # and keep the daemon alive — this is recoverable.
-                logger.error("cannot read vehicle state: %s", exc)
-                bridge.mark_unavailable()
-            except MQTTError as exc:
-                logger.error("broker connection lost: %s; reconnecting", exc)
-                _reconnect(client, BIRTH_TOPIC, bridge)
-            except Exception:  # noqa: BLE001
-                # The last line of defence. A daemon that dies here takes the
-                # data away from Home Assistant silently, and launchd's answer —
-                # restart it — drops the broker connection every time. Better to
-                # log loudly and keep the loop: the next cycle is 30 s away, so a
-                # persistent fault is two lines a minute rather than a spin.
-                logger.exception("unexpected error in the publish cycle; continuing")
+
+            guarded(turn, "publish cycle")
 
             elapsed = time.monotonic() - started
             sleep_for = max(1.0, config.mqtt.publish_interval - elapsed)
