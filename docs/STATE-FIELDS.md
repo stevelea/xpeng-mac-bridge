@@ -6,7 +6,7 @@ The GPS coordinates and the VIN are redacted in this file. Everything else is wh
 
 ## `bleTimestamp`
 
-Scalar value: `"2026-09-30 04:10:33.907"`
+Scalar value: `"2026-09-30 09:59:52.113"`
 
 ## `charge`
 
@@ -18,42 +18,42 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 | `ai_travel_time` | string | `"00:00"` |  |
 | `battery_keep_warm_status` | int | `0` |  |
 | `battery_monitor_status` | int | `0` |  |
-| `battery_soc` | int | `70` | whole percent |
+| `battery_soc` | int | `64` | whole percent |
 | `battery_temp_ctrl_rem_time` | int | `0` |  |
 | `battery_temp_ctrl_status` | int | `0` |  |
 | `big_current_charge_flag` | int | `0` |  |
-| `charge_connector_status` | int | `1` |  |
+| `charge_connector_status` | int | `0` |  |
 | `charge_gun_lock_status` | int | `0` |  |
-| `charge_gun_status` | int | `-1` | enum-like; meaning not established |
-| `charge_rate` | float | `1.0311` |  |
-| `charging_state` | int | `2` | enum-like; meaning not established |
+| `charge_gun_status` | int | `0` |  |
+| `charge_rate` | int | `-1` | enum-like; meaning not established |
+| `charging_state` | int | `15` |  |
 | `discharge_capacity` | int | `0` |  |
 | `electric_current_limit` | int | `27` |  |
-| `electricity` | float | `29.5` |  |
+| `electricity` | int | `0` |  |
 | `fast_charge_add_mileage` | int | `0` |  |
-| `fast_charge_port_status` | int | `0` |  |
-| `flash_charge_status` | int | `1` |  |
+| `fast_charge_port_status` | int | `2` | enum-like; meaning not established |
+| `flash_charge_status` | int | `0` |  |
 | `max_range_charge` | int | `90` |  |
-| `power` | float | `6.9` | charging only; the export's `ldcu_chrgpwr` |
+| `power` | int | `0` | charging only; the export's `ldcu_chrgpwr` |
 | `repeat_type` | int | `0` |  |
 | `reserve_battery_keep_warm_start_time` | string | `"07:00"` |  |
 | `reserve_battery_keep_warm_status` | int | `0` |  |
 | `reserve_charge_end_time` | string | `"06:00"` |  |
 | `reserve_charge_start_time` | string | `"22:00"` |  |
-| `slow_charge_port_status` | int | `0` |  |
+| `slow_charge_port_status` | int | `2` | enum-like; meaning not established |
 | `super_charge_flag` | int | `0` |  |
-| `time_to_complete_charge` | float | `2.6333` |  |
-| `time_to_complete_charge_min` | int | `158` |  |
-| `voltage` | int | `233` |  |
+| `time_to_complete_charge` | int | `0` |  |
+| `time_to_complete_charge_min` | int | `0` |  |
+| `voltage` | int | `0` |  |
 
 ## `chargeStatistics`
 
 | Field | Type | Example | Notes |
 |---|---|---|---|
-| `addedRange` | int | `68` | km, last completed charge |
-| `chargeTime` | int | `6264000` |  |
-| `completeTime` | int | `1790745827000` | epoch **milliseconds** |
-| `usageElectricity` | float | `10.2` | kWh, last completed charge |
+| `addedRange` | int | `69` | km, last completed charge |
+| `chargeTime` | int | `7023000` |  |
+| `completeTime` | int | `1790752919000` | epoch **milliseconds** |
+| `usageElectricity` | float | `10.35` | kWh, last completed charge |
 
 ## `door`
 
@@ -80,7 +80,7 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 
 | Field | Type | Example | Notes |
 |---|---|---|---|
-| `angle` | float | `193.51` | heading, degrees |
+| `angle` | float | `191.3` | heading, degrees |
 | `coordType` | int | `2` | enum-like; meaning not established |
 | `coordValid` | int | `1` |  |
 | `latitude` | float | `-33.8688` |  |
@@ -143,8 +143,8 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 | `hvac_deodorize_mode` | int | `0` |  |
 | `hvac_front_glass_heat_mode` | int | `0` |  |
 | `hvac_high_temp_mode` | int | `0` |  |
-| `hvac_inner_temp` | int | `28` |  |
-| `hvac_inner_temp_float` | int | `28` | float form; the int twin is the display value |
+| `hvac_inner_temp` | int | `24` |  |
+| `hvac_inner_temp_float` | int | `24` | float form; the int twin is the display value |
 | `hvac_mirror_heat_mode` | int | `0` |  |
 | `hvac_on` | int | `0` |  |
 | `hvac_quick_cool_mode` | int | `0` |  |
@@ -155,8 +155,8 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 | `hvac_sfs_channel_mode` | int | `0` |  |
 | `hvac_sfs_mode` | int | `0` |  |
 | `hvac_silent_mode` | int | `0` |  |
-| `hvac_temp` | int | `21` |  |
-| `hvac_temp_float` | float | `21.5` |  |
+| `hvac_temp` | int | `22` |  |
+| `hvac_temp_float` | float | `22.5` |  |
 | `hvac_wind_mode` | int | `0` |  |
 | `hvac_wind_speed` | int | `0` |  |
 
@@ -171,8 +171,6 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 | Field | Type | Example | Notes |
 |---|---|---|---|
 | `bleKeyActive` | int | `-1` | enum-like; meaning not established |
-| `bleKeyStatus` | int | `-1` | enum-like; meaning not established |
-| `keyStatus` | int | `-1` | enum-like; meaning not established |
 | `lowPowerStatus` | int | `-1` | enum-like; meaning not established |
 | `remoteKeyActive` | int | `-1` | enum-like; meaning not established |
 
@@ -180,10 +178,10 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 
 | Field | Type | Example | Notes |
 |---|---|---|---|
-| `avalible_driving_distance` | int | `390` | the app's own range estimate |
+| `avalible_driving_distance` | int | `349` | the app's own range estimate |
 | `fuel_avalible_driving_distance` | int | `0` |  |
 | `range_type` | int | `4` | enum-like; meaning not established |
-| `total_mileage` | int | `60015` | whole km |
+| `total_mileage` | int | `60086` | whole km |
 
 ## `power`
 
@@ -241,7 +239,7 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 
 | Field | Type | Example | Notes |
 |---|---|---|---|
-| `tpms_pressure_fl` | int | `236` | kPa, not bar or psi |
+| `tpms_pressure_fl` | int | `239` | kPa, not bar or psi |
 | `tpms_pressure_fl_warn` | int | `0` | kPa, not bar or psi |
 | `tpms_pressure_fr` | int | `244` | kPa, not bar or psi |
 | `tpms_pressure_fr_warn` | int | `0` | kPa, not bar or psi |
@@ -269,4 +267,4 @@ Scalar value: `"2026-09-30 04:10:33.907"`
 | `rear_right_window_position` | int | `100` |  |
 | `windowStatusCalculated` | int | `0` |  |
 
-**157 fields across 22 groups.**
+**155 fields across 22 groups.**

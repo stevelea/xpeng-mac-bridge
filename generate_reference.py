@@ -14,13 +14,22 @@ generated docs can be published without leaking where the car is parked. Field
 *names*, types and observed-value sets are kept, because that is the part that
 is actually useful to someone implementing this.
 
-    python3 generate_reference.py            # write the docs
-    python3 generate_reference.py --check    # fail if they are out of date
+    python3 generate_reference.py --snapshot   # refresh the sample from the app
+    python3 generate_reference.py              # write the docs
+    python3 generate_reference.py --check      # fail if they are out of date
+
+The docs are built from a **committed** sample (`docs/state-sample.json`), not
+from a live read. That matters: the fields' values change every time the car
+polls, so generating straight from the app made ``--check`` report drift on every
+refresh and made the output unreproducible. The sample is redacted when it is
+taken, so the fixture is safe to commit, and regenerating the docs needs no app,
+no database and no Mac.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from xpengmac import reader, signals  # noqa: E402
 
 DOCS = Path(__file__).resolve().parent / "docs"
+SAMPLE = DOCS / "state-sample.json"
 
 EXAMPLE_VIN = "L1NNSGHA0SB000000"
 EXAMPLE_LAT = -33.868800
@@ -250,6 +260,71 @@ def entities_doc(vehicle: reader.Vehicle, mqtt_prefix: str, discovery_prefix: st
     return "\n".join(out)
 
 
+def write_snapshot() -> None:
+    """Read the live app state, redact it, and save it as the committed sample."""
+    vehicle = reader.read_vehicles()[0]
+    real_vin = vehicle.vin
+
+    # The real VIN must not reach the sample. This has to replace `vehicle.vin`
+    # itself, not just the display name: `slug`, and therefore every topic and
+    # entity ID in the output, is derived from the VIN. The first version of this
+    # only masked `disp`, and the docs shipped the real VIN in lower case in five
+    # topic names.
+    vehicle.vin = EXAMPLE_VIN
+    vehicle.meta["vin"] = EXAMPLE_VIN
+    vehicle.meta["disp"] = EXAMPLE_VIN
+    vehicle.meta["plateNo"] = None
+
+    state = {
+        group: {
+            key: redact(f"{group}.{key}", value, real_vin)
+            for key, value in block.items()
+        }
+        if isinstance(block, dict)
+        else redact(group, block, real_vin)
+        for group, block in vehicle.state.items()
+    }
+
+    sample = {
+        "vin": EXAMPLE_VIN,
+        "uid": "10000001",
+        "meta": vehicle.meta,
+        "capabilities": vehicle.capabilities,
+        "state": state,
+        "_note": "Redacted sample used to generate ENTITIES.md and STATE-FIELDS.md.",
+    }
+    serialised = json.dumps(sample, indent=1, sort_keys=True, default=str) + "\n"
+    # The guard belongs here, not at generation time: this is the only point at
+    # which the real VIN is known, and the sample is what gets committed. Check
+    # both cases, because topics lower-case it and an upper-case-only check
+    # passed while the real VIN sat in five topic names.
+    for form in (real_vin, real_vin.lower()):
+        if form in serialised:
+            raise SystemExit(f"refusing to write {SAMPLE}: it contains the VIN as {form}")
+
+    SAMPLE.parent.mkdir(parents=True, exist_ok=True)
+    SAMPLE.write_text(serialised)
+    print(f"wrote {SAMPLE}")
+
+
+def load_sample() -> reader.Vehicle:
+    """Rebuild a Vehicle from the committed sample, with no app access."""
+    if not SAMPLE.exists():
+        raise SystemExit(
+            f"{SAMPLE} is missing. Create it once from a live read with:\n"
+            f"  python3 generate_reference.py --snapshot"
+        )
+    raw = json.loads(SAMPLE.read_text())
+    return reader.Vehicle(
+        vin=raw["vin"],
+        uid=raw["uid"],
+        state=raw["state"],
+        meta=raw.get("meta", {}),
+        capabilities=raw.get("capabilities", []),
+        timestamp=None,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -257,32 +332,31 @@ def main() -> int:
         action="store_true",
         help="exit 1 if the generated docs differ from what is on disk",
     )
+    parser.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="re-read the app and rewrite docs/state-sample.json",
+    )
     args = parser.parse_args()
 
-    vehicle = reader.read_vehicles()[0]
+    if args.snapshot:
+        write_snapshot()
+        if not args.check:
+            return 0
 
-    # The real VIN must not reach the generated files. This has to replace
-    # `vehicle.vin` itself, not just the display name: `slug`, and therefore
-    # every topic and entity ID in the output, is derived from the VIN. The
-    # first version of this only masked `disp`, and the docs shipped the real
-    # VIN in lower case in five topic names.
-    real_vin = vehicle.vin
-    vehicle.vin = EXAMPLE_VIN
-    vehicle.meta["disp"] = EXAMPLE_VIN
-    vehicle.meta["serial_number"] = EXAMPLE_VIN
+    vehicle = load_sample()
+    if vehicle.vin != EXAMPLE_VIN:
+        raise SystemExit(
+            f"{SAMPLE} carries VIN {vehicle.vin!r}, not the redacted {EXAMPLE_VIN!r}. "
+            "Re-create it with --snapshot rather than committing a live dump."
+        )
     docs = {
         DOCS / "STATE-FIELDS.md": state_fields_doc(vehicle),
         DOCS / "ENTITIES.md": entities_doc(vehicle, "xpeng", "homeassistant"),
     }
 
     stale: list[Path] = []
-    # Check both cases. Topics lower-case the VIN, so an upper-case-only check
-    # passes while the lower-case form is on every line.
     for path, content in docs.items():
-        for form in (real_vin, real_vin.lower()):
-            if form in content:
-                print(f"ERROR: {path} still contains the VIN as {form}", file=sys.stderr)
-                return 2
         if args.check:
             if not path.exists() or path.read_text() != content:
                 stale.append(path)

@@ -119,6 +119,18 @@ been seen as `1`, and only while charging. One observed value of an enum is not
 enough to name a state, so the raw value is published as a diagnostic instead.
 A wrong binary in a dashboard reads as fact.
 
+**The app is not meant to be left running, and the bridge can manage that.**
+Measured 2026-09-30: the XPENG app used **191% CPU within a minute of launch** and
+banked 12.3 CPU-hours over 7.5 hours of wall clock. It is not a stuck state from
+long uptime — a freshly launched app does it immediately — and it does not need
+to be running at all, because this reads a cache that survives the app quitting.
+
+Set `source.refresh_app` and the bridge will open the app when the cache has gone
+stale, wait for it to refresh, and close it again. A ~45-second launch is enough.
+That replaces two cores held permanently with a duty cycle of a couple of
+percent. The app is left alone if it is already open, on the assumption that at
+that point somebody is using it.
+
 **The data age is published, and acted on.** The app stores the latest state, not
 a history, so stale values are the failure mode. Every entity carries an
 `availability` topic that flips to `offline` past `stale_after_seconds`, and

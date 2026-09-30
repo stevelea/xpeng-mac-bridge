@@ -24,7 +24,23 @@ plutil -lint "$TARGET" >/dev/null
 
 # Idempotent: bootout fails harmlessly when nothing is loaded.
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$TARGET"
+
+# launchd needs a moment to finish tearing the old job down. Bootstrapping in the
+# same instant fails with "Bootstrap failed: 5: Input/output error", which reads
+# like a broken plist and is not. Retry briefly.
+attempt=1
+while [ "$attempt" -le 5 ]; do
+    if launchctl bootstrap "gui/$(id -u)" "$TARGET" 2>/dev/null; then
+        break
+    fi
+    if [ "$attempt" -eq 5 ]; then
+        echo "launchctl bootstrap kept failing; run it by hand to see the error:" >&2
+        echo "  launchctl bootstrap gui/$(id -u) $TARGET" >&2
+        exit 1
+    fi
+    sleep 2
+    attempt=$((attempt + 1))
+done
 
 echo "installed $TARGET"
 echo "logs:     $HOME/Library/Logs/xpeng-mac-bridge.log"

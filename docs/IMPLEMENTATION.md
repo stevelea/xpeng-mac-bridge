@@ -201,9 +201,49 @@ pins a content hash, and a modified bundle loses its grant.
 
 ---
 
-## 7. Keeping the data fresh
+## 7. Keeping the data fresh — and the CPU down
 
-**The bridge is only as fresh as the app.** It reads a cache, so:
+**Do not leave the XPENG app running.** This is the single biggest thing you can
+do for the Mac's CPU, and the bridge is designed around it.
+
+Measured on this machine, 2026-09-30:
+
+| | |
+|---|---|
+| App CPU while running | **191%** within a minute of launch |
+| CPU banked over one session | **12.3 hours** in 7.5 hours of wall clock |
+| Cache refresh from a cold launch | **~45 seconds** |
+| CPU with the app closed | nothing |
+| Does the bridge still work with the app closed? | **yes** — it reads a cache |
+
+It is not a stuck state that a restart clears: a freshly launched app goes
+straight to ~2 cores, and it stopped refreshing its cache entirely while still
+burning them.
+
+So the intended posture is: **the app closed, opened briefly on a schedule.**
+
+```json
+"source": {
+  "refresh_app": true,
+  "refresh_after_seconds": 900,
+  "refresh_wait_seconds": 150
+}
+```
+
+With that, the bridge opens the app when the cached state is more than
+`refresh_after_seconds` old, waits up to `refresh_wait_seconds` for the cache to
+move, and closes it again. The app is **left alone if it is already running** —
+at that point you are using it, and quitting it out from under you would be worse
+than slightly stale data.
+
+Tune `refresh_after_seconds` to taste: it is the whole freshness/CPU trade. 900
+(15 minutes) keeps data at most ~16 minutes old; 3600 costs about a quarter of
+the app launches and a correspondingly smaller slice of CPU.
+
+If you would rather drive it yourself, leave `refresh_app` false and open the app
+whenever you want a refresh — the bridge will pick up whatever is cached.
+
+**The bridge is only as fresh as the cache.** It reads a cache, so:
 
 * The app must stay signed in.
 * The app must refresh periodically. It has background fetch and background

@@ -38,9 +38,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import signal
 import sqlite3
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -582,13 +585,8 @@ def _read_metadata(connection: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     return out
 
 
-def is_app_running() -> bool:
-    """Whether the XPENG app process is up.
-
-    Informational only. The database keeps its last values whether or not the
-    app is running, so a stopped app means stale data, not absent data — which
-    is exactly what the published data-age sensor is for.
-    """
+def _app_pids() -> list[int]:
+    """Pids of the running XPENG app, if any."""
     try:
         listing = subprocess.run(
             ["pgrep", "-f", "XPENG.app/XPENG"],
@@ -597,8 +595,71 @@ def is_app_running() -> bool:
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
+        return []
+    if listing.returncode != 0:
+        return []
+    return [int(p) for p in listing.stdout.split() if p.isdigit()]
+
+
+def is_app_running() -> bool:
+    """Whether the XPENG app process is up.
+
+    Informational only. The database keeps its last values whether or not the
+    app is running, so a stopped app means stale data, not absent data — which
+    is exactly what the published data-age sensor is for.
+    """
+    return _app_pids() != []
+
+
+def launch_app(name: str = "XPENG") -> bool:
+    """Open the app by name. False if it could not be started."""
+    try:
+        result = subprocess.run(
+            ["open", "-a", name], capture_output=True, timeout=30, check=False
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug("could not launch %s: %s", name, exc)
         return False
-    return listing.returncode == 0
+    if result.returncode != 0:
+        logger.debug("open -a %s failed: %s", name, result.stderr.decode().strip())
+        return False
+    return True
+
+
+def quit_app(name: str = "XPENG", wait_seconds: float = 15.0) -> bool:
+    """Quit the app gracefully, then insist. True once it is gone.
+
+    Graceful first, because the app owns the charging schedule and a polite
+    request is worth trying before a hard kill. SIGTERM after the grace period:
+    it is a viewer, so nothing is lost by closing it.
+    """
+    try:
+        subprocess.run(
+            ["osascript", "-e", f'quit app "{name}"'],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    deadline = time.monotonic() + wait_seconds
+    while time.monotonic() < deadline:
+        if not _app_pids():
+            return True
+        time.sleep(0.5)
+
+    for pid in _app_pids():
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if not _app_pids():
+            return True
+        time.sleep(0.5)
+    return not _app_pids()
 
 
 def format_age(seconds: float | None) -> str:

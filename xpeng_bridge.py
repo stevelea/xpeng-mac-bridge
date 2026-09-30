@@ -27,11 +27,12 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import signal
 import sys
 import time
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from xpengmac import __version__, config as config_module
 from xpengmac import reader, signals
@@ -81,11 +82,30 @@ class Bridge:
         publisher: Publisher,
         *,
         state_file: Path | None = None,
+        tick: Callable[[], None] | None = None,
     ) -> None:
         self.config = config
         self.publisher = publisher
         self.state_file = state_file or config.default_state_file()
         self._reannounce = False
+        self._tick_fn = tick
+
+    def _tick(self) -> None:
+        """Pump whatever needs pumping during a long wait.
+
+        Used by `maybe_refresh`, which can sit for two minutes waiting for the
+        app to fetch. Without it the MQTT connection goes silent for longer than
+        the keepalive and the broker drops us — measured, on the first run of
+        this feature. A failure here is swallowed on purpose: the refresh must
+        still reach its `finally` and close the app, because an app left running
+        is the whole thing this feature exists to avoid.
+        """
+        if self._tick_fn is None:
+            return
+        try:
+            self._tick_fn()
+        except Exception:  # noqa: BLE001
+            logger.debug("tick failed", exc_info=True)
 
     @property
     def availability_file(self) -> Path:
@@ -364,10 +384,99 @@ class Bridge:
         flag, self._reannounce = self._reannounce, False
         return flag
 
+    # -- keeping the cache fresh without leaving the app running ------------ #
+
+    def _await_cache_advance(self, before, timeout: float) -> bool:
+        """Poll until the cached timestamp moves past ``before``."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            # Bounded by what is left, so a short timeout is not silently padded
+            # to a full poll interval.
+            time.sleep(max(0.05, min(3.0, deadline - time.monotonic())))
+            self._tick()
+            try:
+                vehicles = self.read()
+            except (AccessDenied, FileNotFoundError):
+                continue
+            newest = max((v.timestamp for v in vehicles if v.timestamp), default=None)
+            if newest and (before is None or newest > before):
+                return True
+        return False
+
+    def maybe_refresh(self, vehicles: list[reader.Vehicle]) -> list[reader.Vehicle]:
+        """Launch the app briefly if the cache is stale, then quit it again.
+
+        The XPENG app uses about two cores the entire time it is open — measured
+        191% within a minute of launch, and 12.3 CPU-hours over 7.5 hours of wall
+        clock on one run — and it does not need to be open, because this reads a
+        cache that survives the app quitting. A ~45 second launch is enough to
+        refresh it.
+
+        So the default shape of a healthy install is: the app is closed, and this
+        opens it on a schedule, waits for the cache to move, and closes it again.
+        That trades an always-on two cores for a duty cycle of a couple of
+        percent.
+
+        Deliberately does nothing when the app is already running — at that point
+        somebody is using it, and quitting it out from under them would be worse
+        than stale data.
+        """
+        source = self.config.source
+        if not source.refresh_app or not vehicles:
+            return vehicles
+
+        ages = [v.age_seconds for v in vehicles if v.age_seconds is not None]
+        if not ages or min(ages) <= source.refresh_after_seconds:
+            return vehicles
+
+        if reader.is_app_running():
+            logger.info(
+                "cache is %s old but %s is already open; leaving it alone",
+                reader.format_age(min(ages)),
+                source.app_name,
+            )
+            return vehicles
+
+        before = max((v.timestamp for v in vehicles if v.timestamp), default=None)
+        logger.info(
+            "cache is %s old; opening %s to refresh, then closing it",
+            reader.format_age(min(ages)),
+            source.app_name,
+        )
+        if not reader.launch_app(source.app_name):
+            logger.warning("could not open %s", source.app_name)
+            return vehicles
+
+        try:
+            advanced = self._await_cache_advance(before, source.refresh_wait_seconds)
+            if advanced:
+                logger.info("cache refreshed")
+            else:
+                logger.warning(
+                    "%s did not refresh the cache within %.0fs",
+                    source.app_name,
+                    source.refresh_wait_seconds,
+                )
+        finally:
+            # Always, even on failure: leaving it open is the thing this exists
+            # to avoid, and a launched-but-unquit app would burn two cores until
+            # someone noticed.
+            if not reader.quit_app(source.app_name):
+                logger.warning(
+                    "could not close %s; it will keep using CPU until closed",
+                    source.app_name,
+                )
+
+        try:
+            return self.read()
+        except (AccessDenied, FileNotFoundError):
+            return vehicles
+
     def cycle(self, *, announce: bool = False) -> list[reader.Vehicle]:
         vehicles = self.read()
         if announce:
             self.prune(self.announce(vehicles))
+        vehicles = self.maybe_refresh(vehicles)
         self.publish_states(vehicles)
         return vehicles
 
@@ -493,18 +602,29 @@ def main(argv: list[str] | None = None) -> int:
         print("config error: mqtt.host is required to publish", file=sys.stderr)
         return 2
 
+    # A one-shot run must not evict the daemon. MQTT has one session per
+    # client id, so a second connection with the same id disconnects the first —
+    # measured here as "broker closed the connection" when `--once` was run while
+    # the launchd agent was up, which looked like a keepalive bug and was not.
+    # The daemon keeps the configured id (stable, so the broker replaces a dead
+    # session after a crash); the exiting modes get a unique one.
+    ephemeral = args.once or args.announce_only or args.check
+    client_id = f"{config.mqtt.client_id}-{os.getpid()}" if ephemeral else config.mqtt.client_id
+
     client = MQTTClient(
         host=config.mqtt.host,
         port=config.mqtt.port,
         username=config.mqtt.username,
         password=config.mqtt.password,
-        client_id=config.mqtt.client_id,
+        client_id=client_id,
         keepalive=config.mqtt.keepalive,
         use_tls=config.mqtt.tls,
         tls_insecure=config.mqtt.tls_insecure,
         ca_file=config.mqtt.ca_file,
     )
-    bridge = Bridge(config, client)
+    # `tick` keeps the broker connection alive while `maybe_refresh` waits on
+    # the app; see Bridge._tick.
+    bridge = Bridge(config, client, tick=lambda: client.poll(timeout=0.0))
 
     try:
         client.connect()

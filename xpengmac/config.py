@@ -42,6 +42,9 @@ _ENV_ALIASES = {
     f"{ENV_PREFIX}SOURCE_DATABASE": ("source", "database"),
     f"{ENV_PREFIX}SOURCE_UID": ("source", "uid"),
     f"{ENV_PREFIX}SOURCE_VIN": ("source", "vin"),
+    f"{ENV_PREFIX}REFRESH_APP": ("source", "refresh_app"),
+    f"{ENV_PREFIX}REFRESH_AFTER_SECONDS": ("source", "refresh_after_seconds"),
+    f"{ENV_PREFIX}APP_NAME": ("source", "app_name"),
     f"{ENV_PREFIX}LOG_LEVEL": ("logging", "level"),
 }
 
@@ -70,6 +73,21 @@ class SourceConfig:
     vin: str | None = None
     enrich_from_plist: bool = True
     plist_path: str | None = None
+
+    # Keeping the cache fresh without leaving the app running. See
+    # `Bridge.maybe_refresh`: the app burns about two cores whenever it is open,
+    # and it does not need to be, because this reads a persisted cache.
+    refresh_app: bool = False
+    """Launch the app briefly when the cached state has gone stale."""
+
+    refresh_after_seconds: float = 900.0
+    """Refresh once the cache is older than this."""
+
+    refresh_wait_seconds: float = 150.0
+    """How long to wait for the cache to advance before giving up and quitting."""
+
+    app_name: str = "XPENG"
+    """The app's name for `open -a` / `quit app`."""
 
 
 @dataclass

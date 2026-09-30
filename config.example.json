@@ -19,7 +19,11 @@
     "uid": null,
     "vin": null,
     "enrich_from_plist": true,
-    "plist_path": null
+    "plist_path": null,
+    "refresh_app": false,
+    "refresh_after_seconds": 900,
+    "refresh_wait_seconds": 150,
+    "app_name": "XPENG"
   },
   "behaviour": {
     "retain": true,

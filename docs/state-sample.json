@@ -1,0 +1,256 @@
+{
+ "_note": "Redacted sample used to generate ENTITIES.md and STATE-FIELDS.md.",
+ "capabilities": [
+  "WIFI_FACTOR_CDUID",
+  "HVAC_SUPPORT_APPOINTMENT_PLATFORM",
+  "SEND_TO_VEHICLE_SOFTWARE",
+  "HVAC_SILENT_MODE",
+  "HVAC_TEMP_SUPPORT_FLOAT",
+  "STEERING_WHEEL_HEAT",
+  "CHARGE_ERROR_CARD",
+  "XCOMBO_ENTRANCE",
+  "BLE_TRAILER_HOOK",
+  "HVAC_CLEAN",
+  "CHARGING_CARD_NEW_SOFTWARE",
+  "AI_CALENDAR",
+  "MOBILE_PARKING_ASSIST",
+  "CHARGE_MANAGE_OPTIMIZE",
+  "BLE_SECURITY_ENHANCE",
+  "SEND_TO_CAR",
+  "REMOTE_START_4G",
+  "LEAVE_POWER_ON_SUPPORT_NOTIFICATION_SWITCHER",
+  "AI_CALENDAR_OSS",
+  "CHARGE_BATTERY_KEEP_WARM",
+  "DOOR_LOCK_WITH_IGON_NEW",
+  "DOOR_LOCK_WITH_IGON",
+  "HVAC_TEMP_RANGE_ADJUSTMENT",
+  "AI_CALENDAR_ICAL",
+  "RAPID_TEMP_UP_LINKED_WHEEL_HEATING_SOFTWARE",
+  "SIRI_FUN",
+  "SUN_SHADE_SOFTWARE",
+  "POLLING_LOCK_DOUBLE_SOFTWARE",
+  "HVAC_SUPPORT_TIME_SET",
+  "PROTECT_MODE",
+  "CHARGE_MANAGE_SOFTWARE",
+  "SENTINEL_MODE",
+  "SPECIAL_AREA_SEND_TO_VEHICLE"
+ ],
+ "meta": {
+  "cccVid": null,
+  "cduPartsNoEight2Ten": "FAC",
+  "cduSystem": 1,
+  "colour": "WK",
+  "disp": "L1NNSGHA0SB000000",
+  "index": 0,
+  "parkLimitSixMeter": 1,
+  "plateNo": null,
+  "relationType": 4,
+  "saleRegionCode": "AU",
+  "totalMileage": 60086,
+  "typeName": "G6",
+  "vehicleTypeCode": "FA",
+  "vehicleTypeName": "F30",
+  "vin": "L1NNSGHA0SB000000"
+ },
+ "state": {
+  "bleTimestamp": "2026-09-30 09:59:52.113",
+  "charge": {
+   "ai_charge_end_time": "00:00",
+   "ai_charge_start_time": "00:00",
+   "ai_charge_switch": 0,
+   "ai_travel_time": "00:00",
+   "battery_keep_warm_status": 0,
+   "battery_monitor_status": 0,
+   "battery_soc": 64,
+   "battery_temp_ctrl_rem_time": 0,
+   "battery_temp_ctrl_status": 0,
+   "big_current_charge_flag": 0,
+   "charge_connector_status": 0,
+   "charge_gun_lock_status": 0,
+   "charge_gun_status": 0,
+   "charge_rate": -1,
+   "charging_state": 15,
+   "discharge_capacity": 0,
+   "electric_current_limit": 27,
+   "electricity": 0,
+   "fast_charge_add_mileage": 0,
+   "fast_charge_port_status": 2,
+   "flash_charge_status": 0,
+   "max_range_charge": 90,
+   "power": 0,
+   "repeat_type": 0,
+   "reserve_battery_keep_warm_start_time": "07:00",
+   "reserve_battery_keep_warm_status": 0,
+   "reserve_charge_end_time": "06:00",
+   "reserve_charge_start_time": "22:00",
+   "slow_charge_port_status": 2,
+   "super_charge_flag": 0,
+   "time_to_complete_charge": 0,
+   "time_to_complete_charge_min": 0,
+   "voltage": 0
+  },
+  "chargeStatistics": {
+   "addedRange": 69,
+   "chargeTime": 7023000,
+   "completeTime": 1790752919000,
+   "usageElectricity": 10.35
+  },
+  "door": {
+   "bonnet_ajar_st": 0,
+   "door_lock_source": 11,
+   "driver_door_ajar_st": 0,
+   "driver_door_lock_st": 1,
+   "leave_car_keep_power": 0,
+   "left_slide_door_position": 0,
+   "left_slide_door_status": 0,
+   "passenger_door_ajar_st": 0,
+   "polling_lock_disable_status": 0,
+   "rear_left_door_ajar_st": 0,
+   "rear_right_door_ajar_st": 0,
+   "right_slide_door_position": 0,
+   "right_slide_door_status": 0,
+   "temp_lock_st": 0,
+   "trunk_ajar_st": 0,
+   "trunk_ajar_st_new": 1
+  },
+  "drive": {
+   "angle": 191.3,
+   "coordType": 2,
+   "coordValid": 1,
+   "latitude": -33.8688,
+   "longitude": 151.2093,
+   "shift_state": 4,
+   "speed": 0
+  },
+  "ext": {
+   "child_forget_alarm": 0,
+   "repairMode": 0,
+   "sentinel_mode_sensitivity": 0,
+   "sentinel_mode_video_enable": 1,
+   "soldier_camera_status": 0,
+   "vehicleMode": 1
+  },
+  "extDoor": {
+   "mainDoorState": -1,
+   "subDoorState": -1
+  },
+  "fridge": {
+   "fridge_holding_status": 0,
+   "fridge_holding_time_setting": 0,
+   "fridge_mode": 0,
+   "fridge_remain_item_status": 0,
+   "fridge_remaining_holding_time": 0,
+   "fridge_temp_status": 0
+  },
+  "fuelTank": {
+   "fuel_port_pos": 0,
+   "fuel_tank_cap_status": 0,
+   "fuel_tank_remain_percent": 0
+  },
+  "hook": {
+   "hook_machine_status": 0,
+   "hook_status": 0,
+   "hook_system_monitor": 0
+  },
+  "hvac": {
+   "hvac_auto": 1,
+   "hvac_clean_mode": 0,
+   "hvac_defrost": 0,
+   "hvac_deodorize_mode": 0,
+   "hvac_front_glass_heat_mode": 0,
+   "hvac_high_temp_mode": 0,
+   "hvac_inner_temp": 24,
+   "hvac_inner_temp_float": 24,
+   "hvac_mirror_heat_mode": 0,
+   "hvac_on": 0,
+   "hvac_quick_cool_mode": 0,
+   "hvac_quick_warm_mode": 0,
+   "hvac_sfs_ch1_type": 0,
+   "hvac_sfs_ch2_type": 0,
+   "hvac_sfs_ch3_type": 0,
+   "hvac_sfs_channel_mode": 0,
+   "hvac_sfs_mode": 0,
+   "hvac_silent_mode": 0,
+   "hvac_temp": 22,
+   "hvac_temp_float": 22.5,
+   "hvac_wind_mode": 0,
+   "hvac_wind_speed": 0
+  },
+  "local": {
+   "repairMode": 0
+  },
+  "monaPower": {
+   "bleKeyActive": -1,
+   "lowPowerStatus": -1,
+   "remoteKeyActive": -1
+  },
+  "odometer": {
+   "avalible_driving_distance": 349,
+   "fuel_avalible_driving_distance": 0,
+   "range_type": 4,
+   "total_mileage": 60086
+  },
+  "power": {
+   "car_igon_state": 0,
+   "car_power_state": 0,
+   "power_mode": 0,
+   "remote_start_status": 0
+  },
+  "protectMode": {
+   "protect_mode_status": 0
+  },
+  "seat": {
+   "driver_seat_heat": 0,
+   "driver_seat_state": 0,
+   "driver_seat_ventilation": 0,
+   "left_rear_seat_heat": 0,
+   "left_rear_seat_ventilation": 0,
+   "passenger_seat_heat": 0,
+   "passenger_seat_ventilation": 0,
+   "psngr_seat_occupancy_status": 0,
+   "right_rear_seat_heat": 0,
+   "right_rear_seat_ventilation": 0,
+   "sec_row_left_seat_occupancy_status": 0,
+   "sec_row_mid_seat_occupancy_status": 0,
+   "sec_row_right_seat_occupancy_status": 0,
+   "third_row_left_seat_occupancy_status": 0,
+   "third_row_mid_seat_occupancy_status": 0,
+   "third_row_right_seat_occupancy_status": 0,
+   "trd_row_left_seat_heat": 0,
+   "trd_row_middle_seat_heat": 0,
+   "trd_row_right_seat_heat": 0
+  },
+  "steerWheel": {
+   "steering_wheel_heat": 0
+  },
+  "tail": {
+   "tail_position": 0,
+   "tail_status": 0
+  },
+  "tpms": {
+   "tpms_pressure_fl": 239,
+   "tpms_pressure_fl_warn": 0,
+   "tpms_pressure_fr": 244,
+   "tpms_pressure_fr_warn": 0,
+   "tpms_pressure_rl": 250,
+   "tpms_pressure_rl_warn": 0,
+   "tpms_pressure_rr": 242,
+   "tpms_pressure_rr_warn": 0
+  },
+  "trunkPower": {
+   "powerSwitch": 0,
+   "timeToPowerOffInMin": 0
+  },
+  "window": {
+   "behind_sun_shade_position": 255,
+   "front_left_window_position": 100,
+   "front_right_window_position": 100,
+   "front_sun_shade_position": 0,
+   "rear_left_window_position": 100,
+   "rear_right_window_position": 100,
+   "windowStatusCalculated": 0
+  }
+ },
+ "uid": "10000001",
+ "vin": "L1NNSGHA0SB000000"
+}
