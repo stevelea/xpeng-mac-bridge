@@ -739,6 +739,13 @@ def main(argv: list[str] | None = None) -> int:
             except MQTTError as exc:
                 logger.error("broker connection lost: %s; reconnecting", exc)
                 _reconnect(client, BIRTH_TOPIC, bridge)
+            except Exception:  # noqa: BLE001
+                # The last line of defence. A daemon that dies here takes the
+                # data away from Home Assistant silently, and launchd's answer —
+                # restart it — drops the broker connection every time. Better to
+                # log loudly and keep the loop: the next cycle is 30 s away, so a
+                # persistent fault is two lines a minute rather than a spin.
+                logger.exception("unexpected error in the publish cycle; continuing")
 
             elapsed = time.monotonic() - started
             sleep_for = max(1.0, config.mqtt.publish_interval - elapsed)
@@ -750,8 +757,13 @@ def main(argv: list[str] | None = None) -> int:
                     logger.error("broker connection lost: %s; reconnecting", exc)
                     _reconnect(client, BIRTH_TOPIC, bridge)
                     break
-                if bridge.take_reannounce():
-                    bridge.prune(bridge.announce(bridge.read()))
+                # No re-announce here on purpose. This block sits inside the idle
+                # loop, and publishing from it would be the one broker call with
+                # no error handling — measured: a connection reset here escaped
+                # main() entirely, exited 1, and had launchd restart the daemon
+                # 16 times with 63 tracebacks in the log. The cycle above already
+                # handles a birth message, at a cost of up to one interval of
+                # latency, which for a retained discovery config is nothing.
     finally:
         # Only a daemon that is genuinely stopping should mark the car offline.
         # A one-shot run has just published fresh values; flipping availability
