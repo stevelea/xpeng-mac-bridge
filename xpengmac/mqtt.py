@@ -258,17 +258,25 @@ class MQTTClient:
     def subscribe(
         self, topic: str, callback: Callable[[str, bytes], None], *, qos: int = 0
     ) -> None:
+        # Registered *before* the SUBSCRIBE goes out, not after the SUBACK
+        # arrives. A broker sends retained messages immediately after the
+        # SUBACK, and _dispatch drops a message for a topic it has no callback
+        # for — so registering late leaves the retained batch one scheduling
+        # accident away from being discarded.
+        self._subscriptions[topic] = callback
+
         packet_id = self._take_packet_id()
         self._send(self._build_subscribe(topic, qos, packet_id))
         deadline = time.monotonic() + 10.0
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                self._subscriptions.pop(topic, None)
                 raise MQTTError(f"no SUBACK for {topic}")
             packet_type, body = self._read_packet(timeout=remaining)
             if packet_type == SUBACK:
-                self._subscriptions[topic] = callback
                 if len(body) >= 3 and body[2] == 0x80:
+                    self._subscriptions.pop(topic, None)
                     raise MQTTError(f"broker refused subscription to {topic}")
                 return
             self._dispatch(packet_type, body)

@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tests.support import test_config  # noqa: E402
 from xpeng_bridge import Bridge, RecordingPublisher  # noqa: E402
 from xpengmac import config as config_module  # noqa: E402
 from xpengmac import reader, signals  # noqa: E402
@@ -348,7 +349,11 @@ class TestTimestamps(unittest.TestCase):
 
 class TestBridgePublishing(unittest.TestCase):
     def setUp(self):
-        self.config = config_module.load(overrides={"mqtt.host": "127.0.0.1"})
+        import tempfile
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.config = test_config(Path(self.tmp.name))
         self.config.mqtt.discovery_prefix = "homeassistant"
         self.config.mqtt.topic_prefix = "xpeng"
         self.publisher = RecordingPublisher(echo=False)
@@ -479,13 +484,9 @@ class TestAvailabilityIsClearedWhenReadFails(unittest.TestCase):
 
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.config = config_module.load(overrides={"mqtt.host": "127.0.0.1"})
+        self.config = test_config(Path(self.tmp.name))
         self.publisher = RecordingPublisher(echo=False)
-        self.bridge = Bridge(
-            self.config,
-            self.publisher,
-            state_file=Path(self.tmp.name) / "published.json",
-        )
+        self.bridge = Bridge(self.config, self.publisher)
         self.vehicle = make_vehicle(charge={"battery_soc": 68})
 
     def test_topics_are_remembered_and_cleared(self):
@@ -519,3 +520,40 @@ class TestAvailabilityIsClearedWhenReadFails(unittest.TestCase):
             if topic.endswith("/availability")
         ]
         self.assertEqual(availability, ["online"])
+
+
+class TestStateFilesFollowTheConfig(unittest.TestCase):
+    """Regression for a bug that reached a live Home Assistant.
+
+    The suite built its config with no path, which falls back to the real
+    ~/.config/xpeng-mac-bridge — so publishing from a test overwrote the running
+    daemon's availability_topics.json with the fixture VIN. The daemon then
+    cleared a topic for a car that does not exist, and every real entity showed
+    as unavailable because its availability topic had no message.
+    """
+
+    def test_state_files_sit_next_to_the_config(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = test_config(Path(tmp))
+            self.assertEqual(config.default_state_file().parent, Path(tmp))
+            self.assertEqual(
+                Bridge(config, RecordingPublisher(echo=False)).availability_file.parent,
+                Path(tmp),
+            )
+
+    def test_publishing_from_a_test_does_not_write_to_the_real_config_dir(self):
+        import tempfile
+
+        real = Path.home() / ".config/xpeng-mac-bridge/availability_topics.json"
+        before = real.read_text() if real.exists() else None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = test_config(Path(tmp))
+            bridge = Bridge(config, RecordingPublisher(echo=False))
+            bridge.publish_states([make_vehicle(charge={"battery_soc": 60})])
+            self.assertTrue(bridge.availability_file.exists())
+
+        after = real.read_text() if real.exists() else None
+        self.assertEqual(before, after, "a test wrote to the real config directory")

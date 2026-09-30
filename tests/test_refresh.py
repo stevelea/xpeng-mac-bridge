@@ -14,6 +14,7 @@ import os
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # deliberately exercise. Silenced so a passing run stays readable.
 logging.getLogger("xpeng_bridge").setLevel(logging.CRITICAL)
 
+from tests.support import test_config  # noqa: E402
 from xpeng_bridge import Bridge, RecordingPublisher  # noqa: E402
 from xpengmac import config as config_module  # noqa: E402
 from xpengmac import reader  # noqa: E402
@@ -39,7 +41,11 @@ def make_vehicle(age_seconds: float) -> reader.Vehicle:
 
 class RefreshTestCase(unittest.TestCase):
     def setUp(self):
-        self.config = config_module.load(overrides={"mqtt.host": "127.0.0.1"})
+        import tempfile
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.config = test_config(Path(self.tmp.name))
         self.config.source.refresh_app = True
         self.config.source.refresh_after_seconds = 900
         self.config.source.refresh_wait_seconds = 5
