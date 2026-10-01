@@ -44,6 +44,8 @@ _ENV_ALIASES = {
     f"{ENV_PREFIX}SOURCE_VIN": ("source", "vin"),
     f"{ENV_PREFIX}REFRESH_APP": ("source", "refresh_app"),
     f"{ENV_PREFIX}REFRESH_AFTER_SECONDS": ("source", "refresh_after_seconds"),
+    f"{ENV_PREFIX}REFRESH_DRIVING_AFTER_SECONDS": ("source", "refresh_driving_after_seconds"),
+    f"{ENV_PREFIX}REFRESH_CHARGING_AFTER_SECONDS": ("source", "refresh_charging_after_seconds"),
     f"{ENV_PREFIX}APP_NAME": ("source", "app_name"),
     f"{ENV_PREFIX}LOG_LEVEL": ("logging", "level"),
 }
@@ -80,8 +82,30 @@ class SourceConfig:
     refresh_app: bool = False
     """Launch the app briefly when the cached state has gone stale."""
 
-    refresh_after_seconds: float = 900.0
-    """Refresh once the cache is older than this."""
+    refresh_after_seconds: float = 3600.0
+    """Refresh once the cache is older than this — the *parked* interval.
+
+    The slow one. A parked car reports the same numbers for hours, so polling it
+    every fifteen minutes buys nothing but app launches, and the app costs about
+    two cores while it is open.
+    """
+
+    refresh_driving_after_seconds: float = 60.0
+    """The interval while the car is out of Park.
+
+    One minute, because this is when the numbers are actually moving: speed,
+    position and state of charge all change second to second, and the point of
+    the bridge is to have them while they matter.
+    """
+
+    refresh_charging_after_seconds: float = 300.0
+    """The interval while charging, when the car *is* parked.
+
+    Between the other two. State of charge moves, but it moves slowly — at
+    6.8 kW a pack takes several minutes to gain a percent, so a one-minute poll
+    mostly re-reads the same integer. Five minutes tracks a charge closely
+    enough to watch it without the app-open time of the driving interval.
+    """
 
     refresh_wait_seconds: float = 150.0
     """How long to wait for the cache to advance before giving up and quitting."""

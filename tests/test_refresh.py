@@ -163,3 +163,83 @@ class TestRefreshDoesNotBreakTheBroker(RefreshTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAdaptiveInterval(RefreshTestCase):
+    """One interval cannot suit a parked, a charging and a driving car."""
+
+    def test_parked_uses_the_slow_interval(self):
+        self.config.source.refresh_after_seconds = 3600
+        vehicle = make_vehicle(1)  # no drive/charge groups at all
+        threshold, why = self.bridge._refresh_threshold([vehicle])
+        self.assertEqual((threshold, why), (3600, "parked"))
+
+    def test_charging_uses_the_middle_interval(self):
+        self.config.source.refresh_charging_after_seconds = 300
+        vehicle = make_vehicle(1)
+        vehicle.state["charge"] = {"power": 6.9, "battery_soc": 64}
+        threshold, why = self.bridge._refresh_threshold([vehicle])
+        self.assertEqual((threshold, why), (300, "charging"))
+
+    def test_driving_uses_the_fast_interval(self):
+        self.config.source.refresh_driving_after_seconds = 60
+        vehicle = make_vehicle(1)
+        vehicle.state["drive"] = {"shift_state": 1, "speed": 48}
+        threshold, why = self.bridge._refresh_threshold([vehicle])
+        self.assertEqual((threshold, why), (60, "driving"))
+
+    def test_driving_wins_over_charging(self):
+        """A car cannot really be both, but driving is the more urgent reading."""
+        self.config.source.refresh_driving_after_seconds = 60
+        self.config.source.refresh_charging_after_seconds = 300
+        vehicle = make_vehicle(1)
+        vehicle.state["charge"] = {"power": 6.9}
+        vehicle.state["drive"] = {"shift_state": 1, "speed": 48}
+        self.assertEqual(self.bridge._refresh_threshold([vehicle])[1], "driving")
+
+    def test_parked_still_refreshes_once_past_the_slow_interval(self):
+        self.config.source.refresh_after_seconds = 3600
+        self.bridge._await_cache_advance = mock.Mock(return_value=True)
+        with mock.patch.object(self.bridge, "read", return_value=[make_vehicle(1)]):
+            self.bridge.maybe_refresh([make_vehicle(3700)])
+        self.launch.assert_called_once()
+
+    def test_parked_does_not_refresh_before_it(self):
+        self.config.source.refresh_after_seconds = 3600
+        self.bridge.maybe_refresh([make_vehicle(1800)])
+        self.launch.assert_not_called()
+
+
+class TestStalenessNeverFlaps(RefreshTestCase):
+    """A parked car must not read `unavailable` between its own refreshes."""
+
+    def test_raised_above_the_parked_interval(self):
+        self.config.source.refresh_app = True
+        self.config.source.refresh_after_seconds = 3600
+        self.config.behaviour.stale_after_seconds = 1800
+        self.assertGreater(self.bridge.effective_stale_after(), 3600)
+
+    def test_configured_value_kept_when_it_is_already_long_enough(self):
+        self.config.source.refresh_after_seconds = 300
+        self.config.behaviour.stale_after_seconds = 7200
+        self.assertEqual(self.bridge.effective_stale_after(), 7200)
+
+    def test_not_applied_when_the_bridge_does_not_open_the_app(self):
+        """With refresh_app off, the configured window is what the user asked for."""
+        self.config.source.refresh_app = False
+        self.config.source.refresh_after_seconds = 3600
+        self.config.behaviour.stale_after_seconds = 1800
+        self.assertEqual(self.bridge.effective_stale_after(), 1800)
+
+    def test_published_availability_uses_the_raised_window(self):
+        self.config.source.refresh_app = True
+        self.config.source.refresh_after_seconds = 3600
+        self.config.behaviour.stale_after_seconds = 1800
+        self.bridge.publish_states([make_vehicle(2400)])
+        availability = [
+            payload
+            for topic, payload, _ in self.publisher.messages
+            if topic.endswith("/availability")
+        ]
+        # 40 minutes old, past the configured 30 but inside the raised window.
+        self.assertEqual(availability, ["online"])

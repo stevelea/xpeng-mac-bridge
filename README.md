@@ -133,10 +133,21 @@ long uptime — a freshly launched app does it immediately — and it does not n
 to be running at all, because this reads a cache that survives the app quitting.
 
 Set `source.refresh_app` and the bridge will open the app when the cache has gone
-stale, wait for it to refresh, and close it again. A ~45-second launch is enough.
-That replaces two cores held permanently with a duty cycle of a couple of
-percent. The app is left alone if it is already open, on the assumption that at
-that point somebody is using it.
+stale, wait for it to refresh, and close it again. The app is left alone if it is
+already open, on the assumption that at that point somebody is using it.
+
+**How stale is measured adaptively**, because one interval cannot suit a parked,
+a charging and a driving car:
+
+| State | Interval | Why |
+|---|---|---|
+| Driving (out of Park) | **1 min** | speed, position and state of charge are all moving |
+| Charging | **5 min** | charge moves, but slowly — at 6.8 kW a pack takes minutes to gain a percent |
+| Parked | **60 min** | the same numbers for hours; polling buys app launches and nothing else |
+
+Measured, the app is open for about **9 seconds** per refresh, so even the
+one-minute driving interval is under 15% of one core, and the parked interval is
+0.25%. That replaces two cores held permanently.
 
 **The data age is published, and acted on.** The app stores the latest state, not
 a history, so stale values are the failure mode. Every entity carries an

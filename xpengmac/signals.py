@@ -249,7 +249,7 @@ def _num(value: Any) -> float | None:
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def _derived_charging(vehicle: Vehicle) -> bool | None:
+def is_charging(vehicle: Vehicle) -> bool | None:
     power = _num(vehicle.get("charge.power"))
     if power is None:
         return None
@@ -296,7 +296,36 @@ def _derived_tailgate_open(vehicle: Vehicle) -> bool | None:
     return None if value is None else bool(value)
 
 
-def _derived_parked(vehicle: Vehicle) -> bool | None:
+def is_driving(vehicle: Vehicle) -> bool | None:
+    """Whether the car is out of Park.
+
+    Deliberately "not in Park" rather than "in Drive": reverse and neutral are
+    also not parked, and a car manoeuvring on a driveway is exactly when a
+    position is worth having. Gear 3 is Reverse on this platform, which
+    `is_parked` documents.
+
+    Speed is checked as well because it is the more direct signal and does not
+    depend on the gear reading being present — a moving car reporting speed is
+    not parked whatever the gear says.
+
+    None when neither field is usable, so a caller can tell "not driving" from
+    "cannot tell".
+    """
+    speed = _num(vehicle.get("drive.speed"))
+    if speed is not None and speed > 0:
+        return True
+
+    shift = _num(vehicle.get("drive.shift_state"))
+    if shift is None:
+        return None if speed is None else False
+    # 1-4 are the gears this platform reports; anything else is not a gear
+    # reading and must not be read as "not Park".
+    if shift not in (1, 2, 3, 4):
+        return None if speed is None else False
+    return shift != 4
+
+
+def is_parked(vehicle: Vehicle) -> bool | None:
     """Gear 4 is Park on this platform, not Drive.
 
     Measured over a month of 1 Hz CAN data: the car reads gear 4 in 95% of
@@ -312,7 +341,7 @@ def _derived_parked(vehicle: Vehicle) -> bool | None:
 
 DERIVED: tuple[Derived, ...] = (
     Derived(
-        "charging", "Charging", COMPONENT_BINARY, _derived_charging,
+        "charging", "Charging", COMPONENT_BINARY, is_charging,
         device_class="battery_charging",
         evidence="charge.power > 1 kW, matching the CSV parser's threshold",
     ),
@@ -336,7 +365,7 @@ DERIVED: tuple[Derived, ...] = (
         evidence="hvac.hvac_on",
     ),
     Derived(
-        "parked", "Parked", COMPONENT_BINARY, _derived_parked,
+        "parked", "Parked", COMPONENT_BINARY, is_parked,
         evidence="shift_state == 4, which trips.py established means Park",
     ),
 )

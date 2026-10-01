@@ -43,6 +43,11 @@ logger = logging.getLogger("xpeng_bridge")
 
 BIRTH_TOPIC = "homeassistant/status"
 
+# How much longer than the slowest refresh interval data may be before it is
+# called stale. One missed cycle plus slack, so a single failure does not
+# flip the whole device to unavailable.
+STALE_MARGIN_SECONDS = 600.0
+
 
 class Publisher(Protocol):
     """The slice of the MQTT client the bridge uses — so tests can stand in."""
@@ -89,6 +94,7 @@ class Bridge:
         self.state_file = state_file or config.default_state_file()
         self._reannounce = False
         self._tick_fn = tick
+        self._stale_reported = False
 
     def _tick(self) -> None:
         """Pump whatever needs pumping during a long wait.
@@ -296,7 +302,7 @@ class Bridge:
 
     def publish_states(self, vehicles: list[reader.Vehicle]) -> int:
         published = 0
-        stale_after = self.config.behaviour.stale_after_seconds
+        stale_after = self.effective_stale_after()
 
         # Remembered before publishing, so a failure on the *next* cycle can
         # still mark these cars offline.
@@ -386,6 +392,55 @@ class Bridge:
 
     # -- keeping the cache fresh without leaving the app running ------------ #
 
+    def _refresh_threshold(self, vehicles: list[reader.Vehicle]) -> tuple[float, str]:
+        """How stale the cache may get before the app is opened, and why.
+
+        Adaptive, because one interval cannot suit all three states. A parked car
+        reports the same numbers for hours; a charging one gains a percent every
+        few minutes; a driving one is changing constantly. Polling all three at
+        the fastest rate would spend most of the app's CPU re-reading a parked
+        car, and polling them all at the slowest would miss the drive.
+        """
+        source = self.config.source
+
+        for vehicle in vehicles:
+            if signals.is_driving(vehicle):
+                return source.refresh_driving_after_seconds, "driving"
+        for vehicle in vehicles:
+            if signals.is_charging(vehicle):
+                return source.refresh_charging_after_seconds, "charging"
+        return source.refresh_after_seconds, "parked"
+
+    def effective_stale_after(self) -> float:
+        """When to stop presenting the data as current.
+
+        Raised above the configured value when the idle refresh interval would
+        leave a parked car looking stale between its own refreshes — with a
+        one-hour parked interval and a thirty-minute staleness window, a car
+        sitting on the driveway would read `unavailable` half the time. That
+        looks like a fault rather than a setting, so it is corrected and said
+        out loud rather than left to be discovered.
+        """
+        configured = self.config.behaviour.stale_after_seconds
+        if not self.config.source.refresh_app:
+            return configured
+
+        slowest = self.config.source.refresh_after_seconds
+        needed = slowest + STALE_MARGIN_SECONDS
+        if needed > configured:
+            if not self._stale_reported:
+                logger.info(
+                    "stale_after_seconds raised from %.0fs to %.0fs: the parked "
+                    "refresh interval is %.0fs, so the car would otherwise be "
+                    "reported unavailable between its own refreshes",
+                    configured,
+                    needed,
+                    slowest,
+                )
+                self._stale_reported = True
+            return needed
+        return configured
+
     def _await_cache_advance(self, before, timeout: float) -> bool:
         """Poll until the cached timestamp moves past ``before``."""
         deadline = time.monotonic() + timeout
@@ -425,8 +480,9 @@ class Bridge:
         if not source.refresh_app or not vehicles:
             return vehicles
 
+        threshold, why = self._refresh_threshold(vehicles)
         ages = [v.age_seconds for v in vehicles if v.age_seconds is not None]
-        if not ages or min(ages) <= source.refresh_after_seconds:
+        if not ages or min(ages) <= threshold:
             return vehicles
 
         if reader.is_app_running():
@@ -439,8 +495,11 @@ class Bridge:
 
         before = max((v.timestamp for v in vehicles if v.timestamp), default=None)
         logger.info(
-            "cache is %s old; opening %s to refresh, then closing it",
+            "cache is %s old (%s interval is %.0fs); opening %s to refresh, "
+            "then closing it",
             reader.format_age(min(ages)),
+            why,
+            threshold,
             source.app_name,
         )
         if not reader.launch_app(source.app_name):

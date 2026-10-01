@@ -267,12 +267,12 @@ class TestValues(unittest.TestCase):
 class TestDerivations(unittest.TestCase):
     def test_charging_uses_the_csv_parsers_threshold(self):
         self.assertTrue(
-            signals._derived_charging(make_vehicle(**{"charge": {"power": 6.9}}))
+            signals.is_charging(make_vehicle(**{"charge": {"power": 6.9}}))
         )
         self.assertFalse(
-            signals._derived_charging(make_vehicle(**{"charge": {"power": 0.4}}))
+            signals.is_charging(make_vehicle(**{"charge": {"power": 0.4}}))
         )
-        self.assertIsNone(signals._derived_charging(make_vehicle()))
+        self.assertIsNone(signals.is_charging(make_vehicle()))
 
     def test_any_door_open(self):
         closed = make_vehicle(
@@ -301,8 +301,8 @@ class TestDerivations(unittest.TestCase):
         self.assertTrue(signals._derived_any_window_open(ajar))
 
     def test_parked_is_gear_four(self):
-        self.assertTrue(signals._derived_parked(make_vehicle(drive={"shift_state": 4})))
-        self.assertFalse(signals._derived_parked(make_vehicle(drive={"shift_state": 1})))
+        self.assertTrue(signals.is_parked(make_vehicle(drive={"shift_state": 4})))
+        self.assertFalse(signals.is_parked(make_vehicle(drive={"shift_state": 1})))
 
     def test_location_rejects_impossible_coordinates(self):
         bad = make_vehicle(drive={"latitude": 999.0, "longitude": 0.0})
@@ -637,4 +637,43 @@ class TestNoIdentifyingDataIsCommitted(unittest.TestCase):
             result.returncode,
             0,
             f"identifying data committed:\n{result.stdout}\n{result.stderr}",
+        )
+
+
+class TestDrivingRule(unittest.TestCase):
+    """`is_driving` is "not in Park" — it drives the adaptive refresh schedule."""
+
+    def test_gear_four_is_parked(self):
+        self.assertFalse(signals.is_driving(make_vehicle(drive={"shift_state": 4})))
+
+    def test_every_other_gear_is_not_parked(self):
+        for gear in (1, 2, 3):
+            with self.subTest(gear=gear):
+                self.assertTrue(
+                    signals.is_driving(make_vehicle(drive={"shift_state": gear}))
+                )
+
+    def test_speed_alone_is_enough(self):
+        """A moving car is not parked whatever the gear reading says."""
+        self.assertTrue(signals.is_driving(make_vehicle(drive={"speed": 12})))
+
+    def test_park_with_speed_is_still_moving(self):
+        self.assertTrue(
+            signals.is_driving(make_vehicle(drive={"shift_state": 4, "speed": 3}))
+        )
+
+    def test_unknown_is_not_false(self):
+        """"Cannot tell" must not be reported as "not driving"."""
+        self.assertIsNone(signals.is_driving(make_vehicle()))
+
+    def test_nonsense_gear_is_not_read_as_not_park(self):
+        for gear in (0, 9, 255, -1):
+            with self.subTest(gear=gear):
+                self.assertIsNone(
+                    signals.is_driving(make_vehicle(drive={"shift_state": gear}))
+                )
+
+    def test_stationary_with_a_gear_is_not_driving(self):
+        self.assertFalse(
+            signals.is_driving(make_vehicle(drive={"shift_state": 4, "speed": 0}))
         )

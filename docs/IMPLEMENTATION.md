@@ -259,20 +259,34 @@ So the intended posture is: **the app closed, opened briefly on a schedule.**
 ```json
 "source": {
   "refresh_app": true,
-  "refresh_after_seconds": 900,
+  "refresh_after_seconds": 3600,
+  "refresh_driving_after_seconds": 60,
+  "refresh_charging_after_seconds": 300,
   "refresh_wait_seconds": 150
 }
 ```
 
-With that, the bridge opens the app when the cached state is more than
-`refresh_after_seconds` old, waits up to `refresh_wait_seconds` for the cache to
-move, and closes it again. The app is **left alone if it is already running** —
-at that point you are using it, and quitting it out from under you would be worse
-than slightly stale data.
+With that, the bridge opens the app when the cached state is older than the
+interval for the car's current state, waits up to `refresh_wait_seconds` for the
+cache to move, and closes it again.
 
-Tune `refresh_after_seconds` to taste: it is the whole freshness/CPU trade. 900
-(15 minutes) keeps data at most ~16 minutes old; 3600 costs about a quarter of
-the app launches and a correspondingly smaller slice of CPU.
+**The interval is adaptive**, because one rate cannot suit all three states:
+
+| State | Default | Reasoning |
+|---|---|---|
+| Driving | **60 s** | Speed, position and state of charge all change continuously. Measured the app needs about 9 s to refresh, so this is under 15% of one core. |
+| Charging | **300 s** | The car is parked, so only charge moves — and at 6.8 kW a pack takes several minutes to gain a percent, so a one-minute poll mostly re-reads the same integer. |
+| Parked | **3600 s** | The same numbers for hours. Measured: SoC stayed on one value across eight consecutive refreshes, so polling hard here buys app launches and nothing else. |
+
+The app is **left alone if it is already running** — at that point you are using
+it, and quitting it out from under you would be worse than slightly stale data.
+
+**`stale_after_seconds` is raised automatically if it would make a parked car
+flap.** With a one-hour parked interval and the old thirty-minute staleness
+window, a car on the driveway would read `unavailable` half the time — which
+looks like a fault rather than a setting. The bridge lifts it to
+`refresh_after_seconds + 600` and says so in the log. Set it explicitly if you
+prefer to choose it yourself.
 
 If you would rather drive it yourself, leave `refresh_app` false and open the app
 whenever you want a refresh — the bridge will pick up whatever is cached.
