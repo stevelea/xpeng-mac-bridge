@@ -149,6 +149,11 @@ Measured, the app is open for about **9 seconds** per refresh, so even the
 one-minute driving interval is under 15% of one core, and the parked interval is
 0.25%. That replaces two cores held permanently.
 
+It opens **hidden and without taking focus** (`open -g -j`), so a refresh does
+not put a window over whatever you are doing. Verified with `lsappinfo`: a plain
+launch reports the app `(in front)` and takes focus, while this one reports
+`(hidden)` and leaves the frontmost app alone — and still refreshes the cache.
+
 **The data age is published, and acted on.** The app stores the latest state, not
 a history, so stale values are the failure mode. Every entity carries an
 `availability` topic that flips to `offline` past `stale_after_seconds`, and

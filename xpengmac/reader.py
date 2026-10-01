@@ -612,10 +612,23 @@ def is_app_running() -> bool:
 
 
 def launch_app(name: str = "XPENG") -> bool:
-    """Open the app by name. False if it could not be started."""
+    """Open the app hidden and without stealing focus. False if it failed.
+
+    The bridge opens the app on a schedule, so a window appearing over whatever
+    someone is doing every few minutes is not acceptable. `-g` keeps it out of
+    the foreground and `-j` launches it hidden. Measured with `lsappinfo`:
+
+        open -a XPENG        ->  "XPENG" ... (in front)   front becomes XPENG
+        open -g -j -a XPENG  ->  "XPENG" ... (hidden)     front stays Chrome
+
+    The risk worth checking was that a hidden app might not poll, since it was
+    observed sitting at 172% CPU for thirty minutes without writing anything.
+    It does poll: on a hidden launch the cached state advanced to 3 seconds old,
+    the same as when shown.
+    """
     try:
         result = subprocess.run(
-            ["open", "-a", name], capture_output=True, timeout=30, check=False
+            ["open", "-g", "-j", "-a", name], capture_output=True, timeout=30, check=False
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.debug("could not launch %s: %s", name, exc)

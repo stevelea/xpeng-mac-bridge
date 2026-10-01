@@ -270,6 +270,20 @@ With that, the bridge opens the app when the cached state is older than the
 interval for the car's current state, waits up to `refresh_wait_seconds` for the
 cache to move, and closes it again.
 
+**The app opens hidden and does not take focus** (`open -g -j`). It is running on
+a schedule, so a window appearing over whatever you are doing every few minutes
+would be intolerable. Measured with `lsappinfo`:
+
+| Launch | App state | Frontmost app |
+|---|---|---|
+| `open -a XPENG` | `(in front)` | becomes XPENG |
+| `open -g -j -a XPENG` | `(hidden)` | unchanged |
+
+The thing worth checking was whether a hidden app still polls — it was previously
+observed sitting at 172% CPU for thirty minutes without writing anything. It
+does: the cached state advanced to 3 seconds old on a hidden launch, the same as
+when shown.
+
 **The interval is adaptive**, because one rate cannot suit all three states:
 
 | State | Default | Reasoning |

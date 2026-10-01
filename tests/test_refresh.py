@@ -243,3 +243,26 @@ class TestStalenessNeverFlaps(RefreshTestCase):
         ]
         # 40 minutes old, past the configured 30 but inside the raised window.
         self.assertEqual(availability, ["online"])
+
+
+class TestTheAppIsOpenedInvisibly(unittest.TestCase):
+    """It opens on a schedule, so it must not appear over what you are doing."""
+
+    def test_launch_uses_the_hidden_background_flags(self):
+        from xpengmac import reader
+
+        with mock.patch("subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=0, stderr=b"")
+            reader.launch_app("XPENG")
+
+        argv = run.call_args[0][0]
+        self.assertIn("-j", argv, "must launch hidden or a window appears")
+        self.assertIn("-g", argv, "must not take focus from the frontmost app")
+        self.assertEqual(argv[:1], ["open"])
+
+    def test_a_failed_launch_is_reported(self):
+        from xpengmac import reader
+
+        with mock.patch("subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=1, stderr=b"no such app")
+            self.assertFalse(reader.launch_app("XPENG"))
