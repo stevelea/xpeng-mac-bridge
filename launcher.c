@@ -29,6 +29,7 @@
  * way out, and a stray process would keep writing to the broker.
  */
 
+#include <errno.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
@@ -114,12 +115,26 @@ int main(int argc, char **argv)
     child_pid = pid;
     free(child_argv);
 
+    /* Wait for the child to actually finish.
+     *
+     * A forwarded signal interrupts waitpid with EINTR, and the first version of
+     * this treated that as "done" and returned while the bridge was still
+     * shutting down — `launchctl bootout` showed the launcher gone and the
+     * Python child still alive. Retry on EINTR; stop only when the child has
+     * been reaped, so the job's lifetime is the bridge's lifetime. It matters
+     * because the bridge publishes availability `offline` on the way out, and
+     * launchd treats the job as finished the moment this process exits.
+     */
     int status = 0;
-    while (waitpid(pid, &status, 0) < 0) {
-        /* A signal we forwarded interrupts the wait; go back and wait again. */
-        if (waitpid(pid, &status, WNOHANG) >= 0) {
+    for (;;) {
+        pid_t waited = waitpid(pid, &status, 0);
+        if (waited == pid) {
             break;
         }
+        if (waited < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
     }
 
     if (WIFEXITED(status)) {
